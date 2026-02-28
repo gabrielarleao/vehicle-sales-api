@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  sales-api:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@sales-db:5432/vehicle_sales
+      - VEHICLE_SERVICE_URL=http://vehicle-api:8000
+      - SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+    depends_on:
+      sales-db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - vehicle-network
+
+  sales-db:
+    image: postgres:15-alpine
+    volumes:
+      - sales_postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=vehicle_sales
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vehicle-network
+
+volumes:
+  sales_postgres_data:
+
+networks:
+  vehicle-network:
+    external: true
