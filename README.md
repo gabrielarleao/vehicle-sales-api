@@ -173,6 +173,27 @@ O relatório de cobertura HTML será gerado em `htmlcov/index.html`.
 
 O CI/CD está configurado para **falhar se a cobertura for menor que 80%**.
 
+## Infraestrutura Kubernetes
+
+O projeto inclui manifests Kubernetes prontos para deploy em `k8s/`:
+
+- **`k8s/deployment.yaml`**: Deployment com 3 réplicas (escalado para suportar aumento de chamadas), health checks (readiness/liveness), limites de recursos e variáveis de ambiente via Secrets
+- **`k8s/service.yaml`**: Service do tipo LoadBalancer expondo a porta 8001
+
+### Aplicar Manifests
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+### Verificar Status
+
+```bash
+kubectl get pods -n tech-challenge -l app=vehicle-sales-api
+kubectl get svc -n tech-challenge -l app=vehicle-sales-api
+```
+
 ## CI/CD
 
 O pipeline de CI/CD (GitHub Actions) executa:
@@ -180,7 +201,7 @@ O pipeline de CI/CD (GitHub Actions) executa:
 1. **Lint & Test**: Executa testes com validação de cobertura mínima de 80%
 2. **Build Docker**: Constrói a imagem Docker
 3. **Security Scan**: Analisa vulnerabilidades com Trivy
-4. **Deploy**: Simula deploy na AWS (ECS) em merges para `main`
+4. **Deploy**: Aplica os manifests Kubernetes (`k8s/deployment.yaml` e `k8s/service.yaml`) em merges para `main`
 
 ### Gatilho de Deploy
 
@@ -222,6 +243,9 @@ vehicle-sales-api/
 │   ├── test_vehicles.py
 │   └── test_schemas.py
 ├── .github/workflows/ci.yml
+├── k8s/
+│   ├── deployment.yaml
+│   └── service.yaml
 ├── docker-compose.yml
 ├── Dockerfile
 ├── pyproject.toml

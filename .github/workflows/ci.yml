@@ -1,0 +1,114 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache de dependências
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Instalar dependências
+        run: poetry install --no-interaction
+
+      - name: Executar testes com cobertura
+        run: poetry run pytest tests/ -v --cov=app --cov-report=term --cov-report=xml --cov-fail-under=80
+
+      - name: Upload relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  build:
+    name: Build Docker
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Build imagem Docker
+        run: docker build -t vehicle-sales-api:${{ github.sha }} .
+
+  security:
+    name: Security Scan
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Build imagem Docker
+        run: docker build -t vehicle-sales-api:${{ github.sha }} .
+
+      - name: Scan com Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: vehicle-sales-api:${{ github.sha }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+  deploy:
+    name: Deploy
+    needs: security
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Deploy - Aplicar manifests Kubernetes
+        run: |
+          echo "====================================="
+          echo "Deploy vehicle-sales-api"
+          echo "====================================="
+          echo ""
+          echo "1. Atualizando imagem no Deployment..."
+          echo "   Imagem: vehicle-sales-api:${{ github.sha }}"
+          echo ""
+          echo "2. Aplicando Kubernetes Deployment (k8s/deployment.yaml)..."
+          cat k8s/deployment.yaml
+          echo ""
+          echo "3. Aplicando Kubernetes Service (k8s/service.yaml)..."
+          cat k8s/service.yaml
+          echo ""
+          echo "Comandos que seriam executados em ambiente real:"
+          echo "   kubectl set image deployment/vehicle-sales-api vehicle-sales-api=vehicle-sales-api:${{ github.sha }} -n tech-challenge"
+          echo "   kubectl apply -f k8s/deployment.yaml"
+          echo "   kubectl apply -f k8s/service.yaml"
+          echo "   kubectl rollout status deployment/vehicle-sales-api -n tech-challenge"
+          echo ""
+          echo "Deploy simulado com sucesso!"
