@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vehicle-sales-api
+  namespace: tech-challenge
+  labels:
+    app: vehicle-sales-api
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vehicle-sales-api
+  template:
+    metadata:
+      labels:
+        app: vehicle-sales-api
+        tier: backend
+    spec:
+      containers:
+        - name: vehicle-sales-api
+          image: vehicle-sales-api:latest
+          ports:
+            - containerPort: 8001
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vehicle-sales-secrets
+                  key: database-url
+            - name: VEHICLE_SERVICE_URL
+              value: "http://vehicle-management-api-service:8000"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vehicle-sales-secrets
+                  key: secret-key
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      restartPolicy: Always
